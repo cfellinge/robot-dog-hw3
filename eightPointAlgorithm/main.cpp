@@ -2,10 +2,15 @@
 #include <Eigen/Dense>
 #include <Eigen/SVD>
 #include <Eigen/Core>
+#include <random>
+
+// Reference:
+// https://www.cs.cmu.edu/~16385/s17/Slides/12.4_8Point_Algorithm.pdf
 
 using Eigen::MatrixXf;
 
-Eigen::MatrixXf reduceRank(Eigen::MatrixXf mat) {
+Eigen::MatrixXf reduceRank(Eigen::MatrixXf mat)
+{
     // Perform SVD
     Eigen::JacobiSVD<Eigen::MatrixXf> svd(mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
@@ -21,43 +26,80 @@ Eigen::MatrixXf reduceRank(Eigen::MatrixXf mat) {
     Eigen::MatrixXf mat_rank2 = svd.matrixU() * singular_values.asDiagonal() * svd.matrixV().transpose();
 
     // Print the original and rank-2 matrix
-    std::cout << "\nOriginal matrix:\n" << mat << std::endl;
-    std::cout << "\nRank-2 matrix:\n" << mat_rank2 << std::endl;
+    std::cout << "\nOriginal matrix:\n"
+              << mat << std::endl;
+    std::cout << "\nRank-2 matrix:\n"
+              << mat_rank2 << std::endl;
 
     return mat_rank2;
 }
 
 int main()
 {
-    MatrixXf m(2, 2);
-    m(0, 0) = 3;
-    m(1, 0) = 2.5;
-    m(0, 1) = -1;
-    m(1, 1) = m(1, 0) + m(0, 1);
+    srand(0);
 
-    MatrixXf points(3, 10);
-    points = MatrixXf::Random(3, 10);
-
-    // Eight randomly generated point pairs
     MatrixXf p(2, 8);
-    p = MatrixXf::Random(2, 8);
+    MatrixXf p_prime(3, 8);
+
+    bool useRandom = false;
+
+    MatrixXf identity(3, 3);
+    identity.row(0) << 1, 2, 3;
+    identity.row(1) << 4, 5, 6;
+    identity.row(2) << 7, 8, 10;
+
+    std::cout << "a" << std::endl;
+
+    if (useRandom)
+    {
+        // Eight randomly generated point pairs
+        p = MatrixXf::Random(2, 8);
+        p_prime = MatrixXf::Random(2, 8);
+    }
+    else
+    {
+        p.row(0) << 1, -2, 2, 1, 3, 1, -1, 5;
+        p.row(1) << 2, 3, -1, 0, -2, 1, 0, -3;
+
+        p.conservativeResize(p.rows() + 1, p.cols());
+        p.row(p.rows() - 1) = MatrixXf::Ones(1, 8);
+
+        for (int i = 0; i < 8; i++) {
+            p_prime.col(i) = p.col(i) * identity;
+
+        }
+    }
+
+    
+    p.conservativeResize(p.rows() - 1, p.cols());
+    p_prime.conservativeResize(p_prime.rows() - 1, p_prime.cols());
+
+    for (int i = 0; i < 8; i++)
+    {
+        p.col(i).normalize();
+    }
+
     p.conservativeResize(p.rows() + 1, p.cols());
     p.row(p.rows() - 1) = MatrixXf::Ones(1, 8);
 
     std::cout << "\np:" << std::endl;
     std::cout << p << std::endl;
 
-    MatrixXf p_prime(2, 8);
-    p_prime = MatrixXf::Random(2, 8);
+    for (int i = 0; i < 8; i++)
+    {
+        p_prime.col(i).normalize();
+    }
+
     p_prime.conservativeResize(p_prime.rows() + 1, p_prime.cols());
     p_prime.row(p_prime.rows() - 1) = MatrixXf::Ones(1, 8);
-    
+
     std::cout << "\np':" << std::endl;
     std::cout << p_prime << std::endl;
 
     MatrixXf a(8, 9);
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
         // x * x'
         a.row(i)[0] = p.col(i)[0] * p_prime.col(i)[0];
 
@@ -88,33 +130,88 @@ int main()
     std::cout << "\nA:" << std::endl;
     std::cout << a << std::endl;
 
-    // a = a.cast<float>();
+    // Alternate step 2:
 
-    // MatrixXf x = Eigen::JacobiSVD(a);
-    Eigen::JacobiSVD<MatrixXf> svd;
-    svd.compute(a, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    MatrixXf aTa = a.transpose() * a;
+
+    Eigen::JacobiSVD<MatrixXf> svdOfaTa;
+    svdOfaTa.compute(aTa, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+    // Step 2:
+
+    Eigen::JacobiSVD<MatrixXf> svdOfA;
+    svdOfA.compute(a, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
     std::cout << "\nSingular values:" << std::endl;
-    std::cout << svd.singularValues() << std::endl;
+    std::cout << svdOfaTa.singularValues() << std::endl;
 
-    MatrixXf b(8, 1);
-    b = MatrixXf::Ones(8, 1);
-    
-    MatrixXf x = svd.solve(b);
+    MatrixXf b(9, 1);
+    b = MatrixXf::Ones(9, 1);
+
+    // solve Ax = b for x
+    MatrixXf x = svdOfaTa.solve(b);
+    // TODO: What is b
 
     std::cout << "\nx*:" << std::endl;
     std::cout << x << std::endl;
 
     std::cout << "x* is a local optimum." << std::endl;
 
+    // Step 3:
+
     MatrixXf e(3, 3);
 
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 9; i++)
+    {
         e.row(i / 3)[i % 3] = x.row(i)[0];
     }
 
     std::cout << "\nE*:" << std::endl;
     std::cout << e << std::endl;
 
-    reduceRank(e);
+    Eigen::FullPivLU<MatrixXf> lu_decomp(e);
+    auto rank = lu_decomp.rank();
+
+    std::cout << "Rank:" << rank << std::endl;
+
+    std::cout << "pp" << std::endl;
+
+    std::cout << e * (e.transpose() * e).inverse() * e.transpose() << std::endl;
+
+    // Step 4:
+
+    MatrixXf f = reduceRank(e);
+
+    Eigen::FullPivLU<MatrixXf> flu_decomp(f);
+    auto frank = flu_decomp.rank();
+
+    std::cout << "Rank:" << frank << std::endl;
+
+    std::cout << "\n{{";
+
+    for (int i = 0; i < 9; i++)
+    {
+        std::cout << f.row(i / 3)[i % 3];
+        if (i % 3 == 2 && i != 8)
+        {
+            std::cout << "}, {";
+        }
+        else if (i == 8)
+        {
+            break;
+        }
+        else
+        {
+            std::cout << ", ";
+        }
+    }
+
+    std::cout << "}}\n"
+              << std::endl;
+
+    for (int i = 0; i < 8; i++)
+    {
+        float diff = p_prime.col(i).transpose() * f * p.col(i);
+        std::cout << i + 1 << ": " << diff << std::endl;
+    }
 }

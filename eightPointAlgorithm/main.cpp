@@ -38,63 +38,42 @@ int main()
 {
     srand(0);
 
-    MatrixXf p(2, 8);
+    MatrixXf p(3, 8);
     MatrixXf p_prime(3, 8);
 
-    bool useRandom = false;
+    MatrixXf transformation(3, 3);
+    transformation.row(0) << 1, 4, 4;
+    transformation.row(1) << 0, 4, 4;
+    transformation.row(2) << 4, 0, 7;
 
-    MatrixXf identity(3, 3);
-    identity.row(0) << 1, 2, 3;
-    identity.row(1) << 4, 5, 6;
-    identity.row(2) << 7, 8, 10;
+    p.row(0) << 1, -2, 2, 1, 3, 1, -1, 5;
+    p.row(1) << 2, 3, -1, 0, -2, 1, 0, -3;
+    p.row(2) = MatrixXf::Ones(1, 8);
 
-    std::cout << "a" << std::endl;
-
-    if (useRandom)
+    for (int i = 0; i < 8; i++)
     {
-        // Eight randomly generated point pairs
-        p = MatrixXf::Random(2, 8);
-        p_prime = MatrixXf::Random(2, 8);
-    }
-    else
-    {
-        p.row(0) << 1, -2, 2, 1, 3, 1, -1, 5;
-        p.row(1) << 2, 3, -1, 0, -2, 1, 0, -3;
-
-        p.conservativeResize(p.rows() + 1, p.cols());
-        p.row(p.rows() - 1) = MatrixXf::Ones(1, 8);
-
-        for (int i = 0; i < 8; i++) {
-            p_prime.col(i) = p.col(i) * identity;
-
-        }
+        p_prime.col(i) = p.col(i).transpose() * transformation;
     }
 
-    
     p.conservativeResize(p.rows() - 1, p.cols());
     p_prime.conservativeResize(p_prime.rows() - 1, p_prime.cols());
 
     for (int i = 0; i < 8; i++)
     {
         p.col(i).normalize();
-    }
-
-    p.conservativeResize(p.rows() + 1, p.cols());
-    p.row(p.rows() - 1) = MatrixXf::Ones(1, 8);
-
-    std::cout << "\np:" << std::endl;
-    std::cout << p << std::endl;
-
-    for (int i = 0; i < 8; i++)
-    {
         p_prime.col(i).normalize();
     }
 
+    p.conservativeResize(p.rows() + 1, p.cols());
     p_prime.conservativeResize(p_prime.rows() + 1, p_prime.cols());
-    p_prime.row(p_prime.rows() - 1) = MatrixXf::Ones(1, 8);
 
-    std::cout << "\np':" << std::endl;
-    std::cout << p_prime << std::endl;
+    p.row(2) = MatrixXf::Ones(1, 8);
+    p_prime.row(2) = MatrixXf::Ones(1, 8);
+
+    std::cout << "p:\n"
+              << p << std::endl;
+    std::cout << "p':\n"
+              << p_prime << std::endl;
 
     MatrixXf a(8, 9);
 
@@ -148,23 +127,36 @@ int main()
     MatrixXf b(9, 1);
     b = MatrixXf::Ones(9, 1);
 
-    // solve Ax = b for x
-    MatrixXf x = svdOfaTa.solve(b);
-    // TODO: What is b
+    // // solve Ax = b for x
+    // MatrixXf x = svdOfA.solve(b);
+    // // TODO: What is b
 
-    std::cout << "\nx*:" << std::endl;
-    std::cout << x << std::endl;
+    // std::cout << "\nx*:" << std::endl;
+    // std::cout << x << std::endl;
 
-    std::cout << "x* is a local optimum." << std::endl;
+    // std::cout << "x* is a local optimum." << std::endl;
+
+    // Perform SVD
+    Eigen::JacobiSVD<Eigen::MatrixXf> svd(a, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+    // Get the singular values
+    Eigen::VectorXf singular_values = svd.singularValues();
+
+    // Find the smallest singular value and set it to zero
+    int min_index;
+    float min_value = singular_values.minCoeff(&min_index);
+    MatrixXf e = svd.matrixV().col(min_index);
+
+    std::cout << "y: " << e << std::endl;
 
     // Step 3:
 
-    MatrixXf e(3, 3);
+    // MatrixXf e(3, 3);
 
-    for (int i = 0; i < 9; i++)
-    {
-        e.row(i / 3)[i % 3] = x.row(i)[0];
-    }
+    // for (int i = 0; i < 9; i++)
+    // {
+    //     e.row(i / 3)[i % 3] = x.row(i)[0];
+    // }
 
     std::cout << "\nE*:" << std::endl;
     std::cout << e << std::endl;
@@ -214,4 +206,6 @@ int main()
         float diff = p_prime.col(i).transpose() * f * p.col(i);
         std::cout << i + 1 << ": " << diff << std::endl;
     }
+
+    std::cout << f * (f.transpose() * f).inverse() * f.transpose() << std::endl;
 }

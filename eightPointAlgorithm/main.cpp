@@ -16,22 +16,29 @@ Eigen::MatrixXf reduceRank(Eigen::MatrixXf mat)
 
     // Get the singular values
     Eigen::VectorXf singular_values = svd.singularValues();
+    Eigen::MatrixXf u = svd.matrixU();
+    Eigen::MatrixXf v = svd.matrixV();
 
-    // Find the smallest singular value and set it to zero
-    int min_index;
-    float min_value = singular_values.minCoeff(&min_index);
-    singular_values(min_index) = 0.0;
+    // set bottom right to 0
+    v.row(v.rows())[v.cols() - 1] = 0;
 
-    // Recompose the matrix
-    Eigen::MatrixXf mat_rank2 = svd.matrixU() * singular_values.asDiagonal() * svd.matrixV().transpose();
+    MatrixXf f = u * v * singular_values.transpose();
 
-    // Print the original and rank-2 matrix
-    std::cout << "\nOriginal matrix:\n"
-              << mat << std::endl;
-    std::cout << "\nRank-2 matrix:\n"
-              << mat_rank2 << std::endl;
+    // // Find the smallest singular value and set it to zero
+    // int min_index;
+    // float min_value = singular_values.minCoeff(&min_index);
+    // singular_values(min_index) = 0.0;
 
-    return mat_rank2;
+    // // Recompose the matrix
+    // Eigen::MatrixXf mat_rank2 = svd.matrixU() * singular_values.asDiagonal() * svd.matrixV().transpose();
+
+    // // Print the original and rank-2 matrix
+    // std::cout << "\nOriginal matrix:\n"
+    //           << mat << std::endl;
+    // std::cout << "\nRank-2 matrix:\n"
+    //           << mat_rank2 << std::endl;
+
+    return f;
 }
 
 int main()

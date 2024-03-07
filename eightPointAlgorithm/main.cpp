@@ -12,7 +12,7 @@ using Eigen::MatrixXf;
 Eigen::MatrixXf reduceRank(Eigen::MatrixXf mat)
 {
     // Perform SVD
-    Eigen::JacobiSVD<Eigen::MatrixXf> svd(mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    Eigen::BDCSVD<Eigen::MatrixXf> svd(mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
 
     // Get the singular values
     Eigen::VectorXf singular_values = svd.singularValues();
@@ -20,23 +20,12 @@ Eigen::MatrixXf reduceRank(Eigen::MatrixXf mat)
     Eigen::MatrixXf v = svd.matrixV();
 
     // set bottom right to 0
-    v.row(v.rows())[v.cols() - 1] = 0;
+    // https://eigen.tuxfamily.org/dox/classEigen_1_1SVDBase.html#a4e7bac123570c348f7ed6be909e1e474
+    // Singular values are always in decreasing order
+    v(v.rows()-1,v.cols() - 1) = 0;
 
-    MatrixXf f = u * v * singular_values.transpose();
-
-    // // Find the smallest singular value and set it to zero
-    // int min_index;
-    // float min_value = singular_values.minCoeff(&min_index);
-    // singular_values(min_index) = 0.0;
-
-    // // Recompose the matrix
-    // Eigen::MatrixXf mat_rank2 = svd.matrixU() * singular_values.asDiagonal() * svd.matrixV().transpose();
-
-    // // Print the original and rank-2 matrix
-    // std::cout << "\nOriginal matrix:\n"
-    //           << mat << std::endl;
-    // std::cout << "\nRank-2 matrix:\n"
-    //           << mat_rank2 << std::endl;
+    // Recompose the matrix
+    MatrixXf f = u * singular_values.asDiagonal() * v.transpose();
 
     return f;
 }
@@ -52,6 +41,9 @@ int main()
     transformation.row(0) << 1, 4, 4;
     transformation.row(1) << 0, 4, 4;
     transformation.row(2) << 4, 0, 7;
+    // transformation.row(0) << 1, 0, 0;
+    // transformation.row(1) << 0, 1, 0;
+    // transformation.row(2) << 0, 0, 1;
 
     p.row(0) << 1, -2, 2, 1, 3, 1, -1, 5;
     p.row(1) << 2, 3, -1, 0, -2, 1, 0, -3;
@@ -78,9 +70,9 @@ int main()
     p_prime.row(2) = MatrixXf::Ones(1, 8);
 
     std::cout << "p:\n"
-              << p << std::endl;
+              << p << std::endl << std::endl;
     std::cout << "p':\n"
-              << p_prime << std::endl;
+              << p_prime << std::endl << std::endl;
 
     MatrixXf a(8, 9);
 
@@ -116,103 +108,61 @@ int main()
     std::cout << "\nA:" << std::endl;
     std::cout << a << std::endl;
 
-    // Alternate step 2:
+    MatrixXf b(8, 1);
+    b = MatrixXf::Zero(8, 1);
+
+    std::cout << "\nb:" << std::endl;
+    std::cout << b << std::endl << std::endl;
+
+    // // Alternate step 2:
 
     MatrixXf aTa = a.transpose() * a;
+    Eigen::BDCSVD<Eigen::MatrixXf> bdcsvd(aTa,Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::VectorXf singular_values = bdcsvd.singularValues();
 
-    Eigen::JacobiSVD<MatrixXf> svdOfaTa;
-    svdOfaTa.compute(aTa, Eigen::ComputeThinU | Eigen::ComputeThinV);
-
-    // Step 2:
-
-    Eigen::JacobiSVD<MatrixXf> svdOfA;
-    svdOfA.compute(a, Eigen::ComputeThinU | Eigen::ComputeThinV);
-
-    std::cout << "\nSingular values:" << std::endl;
-    std::cout << svdOfaTa.singularValues() << std::endl;
-
-    MatrixXf b(9, 1);
-    b = MatrixXf::Ones(9, 1);
-
-    // // solve Ax = b for x
-    // MatrixXf x = svdOfA.solve(b);
-    // // TODO: What is b
-
-    // std::cout << "\nx*:" << std::endl;
-    // std::cout << x << std::endl;
-
-    // std::cout << "x* is a local optimum." << std::endl;
-
-    // Perform SVD
-    Eigen::JacobiSVD<Eigen::MatrixXf> svd(a, Eigen::ComputeThinU | Eigen::ComputeThinV);
-
-    // Get the singular values
-    Eigen::VectorXf singular_values = svd.singularValues();
-
-    // Find the smallest singular value and set it to zero
+    // Find the smallest singular value
     int min_index;
     float min_value = singular_values.minCoeff(&min_index);
-    MatrixXf e = svd.matrixV().col(min_index);
 
-    std::cout << "y: " << e << std::endl;
+    std::cout << "\nsigma:" << std::endl;
+    std::cout << singular_values << std::endl << std::endl;
+    std::cout << "\nmin val/index:" << std::endl;
+    std::cout << min_value << "/" << min_index << std::endl << std::endl;
 
-    // Step 3:
+    // F is v corresponding to least signular value
+    MatrixXf f = bdcsvd.matrixV().col(min_index);
 
-    // MatrixXf e(3, 3);
+    std::cout << "\nf:" << std::endl;
+    std::cout << f << std::endl << std::endl;
 
-    // for (int i = 0; i < 9; i++)
-    // {
-    //     e.row(i / 3)[i % 3] = x.row(i)[0];
-    // }
-
-    std::cout << "\nE*:" << std::endl;
-    std::cout << e << std::endl;
-
-    Eigen::FullPivLU<MatrixXf> lu_decomp(e);
-    auto rank = lu_decomp.rank();
-
-    std::cout << "Rank:" << rank << std::endl;
-
-    std::cout << "pp" << std::endl;
-
-    std::cout << e * (e.transpose() * e).inverse() * e.transpose() << std::endl;
-
-    // Step 4:
-
-    MatrixXf f = reduceRank(e);
-
-    Eigen::FullPivLU<MatrixXf> flu_decomp(f);
-    auto frank = flu_decomp.rank();
-
-    std::cout << "Rank:" << frank << std::endl;
-
-    std::cout << "\n{{";
-
+    // Put the 9x1 matrix into its 3x3 shape
+    MatrixXf F(3, 3);
     for (int i = 0; i < 9; i++)
     {
-        std::cout << f.row(i / 3)[i % 3];
-        if (i % 3 == 2 && i != 8)
-        {
-            std::cout << "}, {";
-        }
-        else if (i == 8)
-        {
-            break;
-        }
-        else
-        {
-            std::cout << ", ";
-        }
+        F.row(i / 3)[i % 3] = f.row(i)[0];
     }
+    
+    std::cout << "\nF:" << std::endl;
+    std::cout << F << std::endl << std::endl;
 
-    std::cout << "}}\n"
-              << std::endl;
-
-    for (int i = 0; i < 8; i++)
+    // Check that we have in fact minimized the thing (printed numbers should be really small)
+    for (int i = 0; i< 8; i++)
     {
-        float diff = p_prime.col(i).transpose() * f * p.col(i);
-        std::cout << i + 1 << ": " << diff << std::endl;
+        std::cout << "\np" <<i << "T * F * p" <<i << "\':" << std::endl;
+        std::cout << p.col(i).transpose() * F * p_prime.col(i) << std::endl << std::endl;
     }
 
-    std::cout << f * (f.transpose() * f).inverse() * f.transpose() << std::endl;
+    // Enforce rank 2
+    MatrixXf Fp = reduceRank(F);
+
+    std::cout << "\nFp:" << std::endl;
+    std::cout << Fp << std::endl << std::endl;
+
+
+    // Check that we have in fact minimized the thing (printed numbers should be really small)
+    for (int i = 0; i< 8; i++)
+    {
+        std::cout << "\np" <<i << "T * Fp * p" <<i << "\':" << std::endl;
+        std::cout << p.col(i).transpose() * Fp * p_prime.col(i) << std::endl << std::endl;
+    }
 }
